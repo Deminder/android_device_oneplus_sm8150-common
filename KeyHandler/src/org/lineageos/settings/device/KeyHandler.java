@@ -21,7 +21,9 @@ import android.media.AudioManager;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.view.KeyEvent;
+import java.util.Arrays;
 
+import lineageos.app.ProfileManager;
 import com.android.internal.os.DeviceKeyHandler;
 
 public class KeyHandler implements DeviceKeyHandler {
@@ -41,12 +43,14 @@ public class KeyHandler implements DeviceKeyHandler {
     private final Context mContext;
     private final AudioManager mAudioManager;
     private final Vibrator mVibrator;
+    private final ProfileManager mProfileManager;
 
     public KeyHandler(Context context) {
         mContext = context;
 
         mAudioManager = mContext.getSystemService(AudioManager.class);
         mVibrator = mContext.getSystemService(Vibrator.class);
+        mProfileManager = ProfileManager.getInstance(mContext);
     }
 
     public KeyEvent handleKeyEvent(KeyEvent event) {
@@ -58,21 +62,37 @@ public class KeyHandler implements DeviceKeyHandler {
 
         switch (scanCode) {
             case MODE_NORMAL:
-                mAudioManager.setRingerModeInternal(AudioManager.RINGER_MODE_NORMAL);
+                if (!maybeSetProfile("NORMAL")) {
+                    mAudioManager.setRingerModeInternal(AudioManager.RINGER_MODE_NORMAL);
+                }
                 doHapticFeedback(MODE_NORMAL_EFFECT);
                 break;
             case MODE_VIBRATION:
-                mAudioManager.setRingerModeInternal(AudioManager.RINGER_MODE_VIBRATE);
+                if (!maybeSetProfile("VIBRATE")) {
+                    mAudioManager.setRingerModeInternal(AudioManager.RINGER_MODE_VIBRATE);
+                }
                 doHapticFeedback(MODE_VIBRATION_EFFECT);
                 break;
             case MODE_SILENCE:
-                mAudioManager.setRingerModeInternal(AudioManager.RINGER_MODE_SILENT);
+                if (!maybeSetProfile("SILENCE")) {
+                    mAudioManager.setRingerModeInternal(AudioManager.RINGER_MODE_SILENT);
+                }
                 break;
             default:
                 return event;
         }
 
         return null;
+    }
+
+    private boolean maybeSetProfile(String profileName) {
+        return mProfileManager.isProfilesEnabled() && Arrays.stream(mProfileManager.getProfiles())
+            .filter(profile -> profileName.toLowerCase().equals(profile.getName().toLowerCase()))
+            .findFirst()
+            .map(profile -> {
+                mProfileManager.setActiveProfile(profile.getUuid());
+                return true;
+            }).orElse(false);
     }
 
     private void doHapticFeedback(VibrationEffect effect) {
